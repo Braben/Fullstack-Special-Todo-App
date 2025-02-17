@@ -1,17 +1,29 @@
 import "./App.css";
-import { Card, Input, Button, Typography } from "@material-tailwind/react";
+import {
+  Card,
+  Input,
+  Button,
+  Typography,
+  Select,
+  Option,
+} from "@material-tailwind/react";
 import { useState, useEffect } from "react";
-import { v4 as uuid } from "uuid";
-// import { getTodos } from "../API/APIs";
 
 function App() {
   const [tasks, setTasks] = useState([]);
-  const [newTask, setNewTask] = useState("");
+  const [newTask, setNewTask] = useState({
+    title: "",
+    priority: "",
+    deadline: "",
+  });
   const [isEditing, setIsEditing] = useState(false);
-  const [currentTask, setCurrentTask] = useState({ id: null, taskName: "" });
 
-  //get all tasks
-  //useEffect hook
+  const [currentTask, setCurrentTask] = useState({
+    id: null,
+    title: "",
+    priority: "",
+    deadline: "",
+  });
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -21,66 +33,153 @@ function App() {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        // console.log("Data:", data);
-        setTasks(data.data); // Set the tasks state
+        setTasks(data.data);
       } catch (error) {
         console.error("Error fetching tasks:", error);
       }
     };
 
     fetchTasks();
-  }, []); // Empty dependency array: runs only once on mount
+  }, []);
 
+  // Handle Change Function
   const handleChange = (e) => {
-    setNewTask(e.target.value);
+    const { name, value } = e.target;
+    setNewTask((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  //add task
-  //create a function that adds a task to the list
-  const addTask = (e) => {
+  // Add Task Function
+  const addTask = async (e) => {
     e.preventDefault();
-    if (!newTask.trim()) {
-      alert("Please enter a task name");
+
+    if (
+      !newTask.title.trim() ||
+      !newTask.priority.trim() ||
+      !newTask.deadline.trim()
+    ) {
+      alert("Please fill all fields.");
       return;
     }
-    const task = {
-      id: uuid(),
-      taskName: newTask,
-    };
-    setTasks([...tasks, task]);
-    setNewTask("");
-  };
 
-  //delete task
-  //create a function that deletes a task from the list
-  const DeleteTask = (id) => {
-    if (window.confirm("Are you sure you want to delete this task?")) {
-      setTasks(tasks.filter((task) => task.id !== id));
+    try {
+      console.log("New Task Payload:", JSON.stringify(newTask, null, 2));
+      const response = await fetch("http://localhost:8000/createtodos", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newTask),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Update tasks state to show the new task on frontend
+      setTasks([...tasks, data.data]);
+
+      // Reset the input fields
+      setNewTask({ title: "", priority: "", deadline: "" });
+
+      alert("Task added successfully!");
+    } catch (error) {
+      console.error("Error adding task:", error);
+      alert("Failed to add task.");
     }
   };
 
-  const EditTask = (task) => {
+  // Edit Task Function
+  const handleEdit = (task) => {
     setIsEditing(true);
     setCurrentTask(task);
-    setNewTask(task.taskName);
+    setNewTask({
+      title: task.title,
+      priority: task.priority,
+      deadline: task.deadline,
+    });
   };
 
-  //update task
-  //create a function that updates a task in the list
-  const updateTask = (e) => {
+  //update
+  const updateTask = async (e) => {
     e.preventDefault();
-    if (!newTask.trim()) {
-      alert("Please enter a task name");
+    console.log(newTask);
+    if (!newTask.title.trim() || !newTask.priority || !newTask.deadline) {
+      alert("Please fill all fields.");
       return;
     }
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/todos/${currentTask._id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(newTask),
+        }
+      );
+
+      const data = await response.json();
+      console.log(data);
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update task.");
+      }
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+
     setTasks(
       tasks.map((task) =>
-        task.id === currentTask.id ? { ...task, taskName: newTask } : task
+        task._id === currentTask._id ? { ...task, ...newTask } : task
       )
     );
+
     setIsEditing(false);
-    setNewTask("");
-    setCurrentTask({ id: null, taskName: "" });
+    setNewTask({ title: "", priority: "", deadline: "" });
+    setCurrentTask({ id: null, title: "", priority: "", deadline: "" });
+  };
+
+  //delete task function
+  const DeleteTask = async (id) => {
+    const taskToDelete = tasks.find((task) => task._id === id);
+    if (!taskToDelete) {
+      alert("Task not found!");
+      return;
+    }
+    const taskToUpper = taskToDelete.title.toUpperCase();
+    if (
+      !window.confirm(
+        `Are you sure you want to delete this task "${taskToUpper}"?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8000/delete/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Error: ${response.statusText}`);
+      }
+
+      // Update UI: Remove the deleted task from the state
+      setTasks((prevTasks) => prevTasks.filter((task) => task._id !== id));
+      console.log(taskToDelete.title);
+      // Show success message
+      alert(`Task with title: ${taskToUpper} deleted successfully!`);
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      alert(`Failed to delete task: ${error.message}`);
+    }
   };
 
   return (
@@ -93,48 +192,102 @@ function App() {
         <Typography className="text-center" variant="h4" color="white">
           SPECIAL TO-DO APP
         </Typography>
-        <form
-          onSubmit={isEditing ? updateTask : addTask}
-          className="mt-8 mb-2 w-80 max-w-screen-lg sm:w-96"
-        >
-          <Input
-            value={newTask}
-            onChange={handleChange}
-            size="lg"
-            placeholder="Enter task name"
-            className=" !border-blue-500 focus:!border-blue-500  bg-white"
-            labelProps={{
-              className: "before:content-none after:content-none ",
-            }}
-          />
-          <Button type="submit" className="bg-blue-600 mt-2">
-            {isEditing ? "Update Task" : "Add Task"}
-          </Button>
-        </form>
+
+        <div className="flex gap-4">
+          <form
+            onSubmit={isEditing ? updateTask : addTask}
+            className="mt-8 mb-2 w-80 max-w-screen-lg sm:w-96 flex flex-col items-center space-y-4"
+          >
+            {/* Task Name Input */}
+            <Input
+              label="Task Name"
+              name="title"
+              value={newTask.title}
+              onChange={handleChange}
+              size="lg"
+              placeholder="Enter task name"
+              className="border border-gray-300 p-3 rounded-lg bg-white 
+                 focus:border-blue-500 focus:ring-2 focus:ring-blue-300 
+                 hover:border-blue-400 transition-all duration-300"
+            />
+
+            {/* Priority Select */}
+            <Select
+              label="Priority"
+              name="priority"
+              value={newTask.priority}
+              onChange={(value) => setNewTask({ ...newTask, priority: value })}
+              className="border border-gray-300 p-3 rounded-lg bg-white 
+                 focus:border-green-500 focus:ring-2 focus:ring-green-300 
+                 hover:border-green-400 transition-all duration-300"
+              placeholder="Select Priority"
+              size="lg"
+            >
+              <Option value="High">🔥 High</Option>
+              <Option value="Medium">⚡ Medium</Option>
+              <Option value="Low">🌿 Low</Option>
+            </Select>
+
+            {/* Deadline Input */}
+            <Input
+              label="Deadline"
+              type="date"
+              name="deadline"
+              value={newTask.deadline}
+              onChange={handleChange}
+              size="lg"
+              className="border border-gray-300 p-3 rounded-lg bg-white 
+                 focus:border-purple-500 focus:ring-2 focus:ring-purple-300 
+                 hover:border-purple-400 transition-all duration-300"
+            />
+
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 
+                 transition-all duration-300 p-3 rounded-lg mt-4"
+            >
+              {isEditing ? "Update Task" : "Add Task"}
+            </Button>
+          </form>
+        </div>
       </Card>
 
-      {/* TASK LIST */}
       <h1 className="bg-blue-700 w-[400px] text-white m-5 p-4 bold">TASKS</h1>
-      {console.log("Map Tasks:", tasks)}
       {tasks.map((task) => (
         <Card
           key={task._id}
           size="lg"
           color="transparent"
-          className="flex flex-row justify-between gap-4 px-4 py-3 border bg-white border-orange-900 m-2 w-[400px] flex-wrap"
+          className="flex flex-col gap-2 px-4 py-3 border bg-white border-orange-900 m-2 w-[400px]"
           shadow={true}
         >
-          {task.title}
-          <div>
+          <Typography className="font-bold">{task.title}</Typography>
+          <Typography
+            className={`text-sm ${
+              task.priority === "High"
+                ? "text-red-500"
+                : task.priority === "Medium"
+                ? "text-orange-500"
+                : "text-green-500"
+            }`}
+          >
+            Priority: {task.priority}
+          </Typography>
+          <Typography className="text-sm text-gray-500">
+            Deadline: {task.deadline}
+          </Typography>
+          <div className="flex justify-around gap-2">
             <button
-              onClick={() => EditTask(task)}
-              className="text-white bg-blue-600 p-2 rounded mr-3"
+              onClick={() => handleEdit(task)}
+              className="text-white bg-blue-600 p-2 w-full rounded"
             >
               Edit
             </button>
             <button
-              onClick={() => DeleteTask(task.id)}
-              className="text-white bg-red-600 p-2 rounded"
+              onClick={() => DeleteTask(task._id)}
+              className="text-white bg-red-600 p-2 w-full rounded"
+              key={task._id}
             >
               Delete
             </button>
@@ -144,5 +297,4 @@ function App() {
     </div>
   );
 }
-
 export default App;

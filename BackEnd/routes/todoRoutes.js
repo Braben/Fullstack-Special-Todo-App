@@ -26,15 +26,15 @@ const validateTodo = [
     .trim()
     .notEmpty()
     .withMessage("Deadline is required")
-    .isDate("mm/dd/yyyy")
+    .isDate()
     .withMessage("Deadline must be a valid date"),
 ];
 Router.get("/todos/:_id?", retrieveTodos);
 
 Router.post("/createtodos", validateTodo, createTodo);
 
-Router.patch("/todos/:_id", isAuth, validateTodo, updateTodo);
+Router.patch("/todos/:_id", validateTodo, updateTodo);
 
-Router.delete("/delete/:_id", isAuth, deleteTodo);
+Router.delete("/delete/:_id", deleteTodo);
 
 module.exports = Router;

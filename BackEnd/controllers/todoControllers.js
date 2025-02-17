@@ -73,7 +73,7 @@ const retrieveTodos = (req, res) => {
         res.send({
           success: false,
           message: "Failed to retrieve todos successfully",
-          data: result,
+          data: todos,
         });
       });
   }
